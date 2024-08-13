@@ -575,6 +575,72 @@ class GrTextPainter extends BoardItemPainter {
     }
 }
 
+class FpPropertyPainter extends BoardItemPainter {
+    classes = [board_items.FpProperty];
+
+    layers_for(t: board_items.FpProperty) {
+        if (t.hide) {
+            return [];
+        } else {
+            return [t.layer.name];
+        }
+    }
+
+    paint(layer: ViewLayer, t: board_items.FpProperty) {
+        if (this.filter_net) return;
+
+        if (t.hide || !t.shown_text) {
+            return;
+        }
+
+        if (t.render_cache) {
+            this.gfx.state.push();
+            this.gfx.state.matrix = Matrix3.identity();
+            for (const poly of t.render_cache.polygons) {
+                this.view_painter.paint_item(layer, poly);
+            }
+            this.gfx.state.pop();
+            return;
+        }
+
+        const edatext = new EDAText(t.shown_text);
+
+        edatext.apply_effects(t.effects);
+        edatext.apply_at(t.at);
+
+        edatext.attributes.keep_upright = !t.at.unlocked;
+        edatext.attributes.color = layer.color;
+
+        if (t.parent) {
+            const rot = Angle.from_degrees(t.parent.at.rotation);
+            let pos = edatext.text_pos;
+            pos = rot.rotate_point(pos, new Vec2(0, 0));
+            pos = pos.add(t.parent.at.position.multiply(10000));
+            edatext.text_pos.set(pos);
+        }
+
+        if (edatext.attributes.keep_upright) {
+            while (edatext.text_angle.degrees > 90) {
+                edatext.text_angle.degrees -= 180;
+            }
+            while (edatext.text_angle.degrees <= -90) {
+                edatext.text_angle.degrees += 180;
+            }
+        }
+
+        this.gfx.state.push();
+        this.gfx.state.matrix = Matrix3.identity();
+
+        StrokeFont.default().draw(
+            this.gfx,
+            edatext.shown_text,
+            edatext.text_pos,
+            edatext.attributes,
+        );
+        this.gfx.state.pop();
+    }
+}
+
 class FpTextPainter extends BoardItemPainter {
     classes = [board_items.FpText];
 
@@ -980,6 +1046,7 @@ export class BoardPainter extends DocumentPainter {
             new FootprintPainter(this, gfx),
             new GrTextPainter(this, gfx),
             new FpTextPainter(this, gfx),
+            new FpPropertyPainter(this, gfx),
             new DimensionPainter(this, gfx),
         ];
     }

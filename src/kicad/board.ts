@@ -30,7 +30,8 @@ export class KicadPCB {
     project?: Project;
     version: number;
     generator?: string;
-    general?: { thickness: number };
+    generator_version?: string;
+    general?: { thickness: number; legacy_teardrops: boolean };
     paper?: Paper;
     title_block = new TitleBlock();
     setup?: Setup;
@@ -55,7 +56,13 @@ export class KicadPCB {
                 P.start("kicad_pcb"),
                 P.pair("version", T.number),
                 P.pair("generator", T.string),
-                P.object("general", {}, P.pair("thickness", T.number)),
+                P.pair("generator_version", T.string),
+                P.object(
+                    "general",
+                    {},
+                    P.pair("thickness", T.number),
+                    P.pair("legacy_teardrops", T.boolean),
+                ),
                 P.item("paper", Paper),
                 P.item("title_block", TitleBlock),
                 P.list("layers", T.item(Layer)),
@@ -153,7 +160,7 @@ export class LineSegment {
     layer: string;
     net: number;
     locked = false;
-    tstamp: string;
+    uuid: string;
 
     constructor(expr: Parseable) {
         /*
@@ -163,7 +170,7 @@ export class LineSegment {
             (width 0.5)
             (layer "F.Cu")
             (net 1)
-            (tstamp 0766ea9a-c430-4922-b68d-6ad9f33e6672))
+            (uuid "0766ea9a-c430-4922-b68d-6ad9f33e6672"))
         */
         Object.assign(
             this,
@@ -176,7 +183,7 @@ export class LineSegment {
                 P.pair("layer", T.string),
                 P.pair("net", T.number),
                 P.atom("locked"),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
             ),
         );
     }
@@ -190,7 +197,7 @@ export class ArcSegment {
     layer: string;
     net: number;
     locked = false;
-    tstamp: string;
+    uuid: string;
 
     constructor(expr: Parseable) {
         /*
@@ -201,7 +208,7 @@ export class ArcSegment {
             (width 0.3)
             (layer "F.Cu")
             (net 1)
-            (tstamp 1c993ada-29b1-41b2-8ac1-a7f99ad99281))
+            (uuid "1c993ada-29b1-41b2-8ac1-a7f99ad99281"))
         */
         Object.assign(
             this,
@@ -215,7 +222,7 @@ export class ArcSegment {
                 P.pair("layer", T.string),
                 P.pair("net", T.number),
                 P.atom("locked"),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
             ),
         );
     }
@@ -232,7 +239,7 @@ export class Via {
     locked = false;
     free = false;
     net: number;
-    tstamp: string;
+    uuid: string;
 
     constructor(expr: Parseable) {
         Object.assign(
@@ -250,7 +257,7 @@ export class Via {
                 P.atom("free"),
                 P.atom("remove_unused_layers"),
                 P.atom("keep_end_layers"),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
             ),
         );
     }
@@ -275,7 +282,7 @@ export class Zone {
     fill: ZoneFill;
     polygons: Poly[];
     filled_polygons: FilledPolygon[];
-    tstamp: string;
+    uuid: string;
 
     constructor(
         expr: Parseable,
@@ -316,7 +323,7 @@ export class Zone {
                     "filled_polygon",
                     T.item(FilledPolygon),
                 ),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
             ),
         );
     }
@@ -605,7 +612,7 @@ export class Dimension {
     locked = false;
     type: "aligned" | "leader" | "center" | "orthogonal" | "radial";
     layer: string;
-    tstamp: string;
+    uuid: string;
     pts: Vec2[];
     height: number;
     orientation: number;
@@ -626,7 +633,7 @@ export class Dimension {
                 P.atom("locked"),
                 P.pair("type", T.string),
                 P.pair("layer", T.string),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
                 P.list("pts", T.vec2),
                 P.pair("height", T.number),
                 P.pair("orientation", T.number),
@@ -731,7 +738,14 @@ export class DimensionStyle {
     }
 }
 
-type FootprintDrawings = FpLine | FpCircle | FpArc | FpPoly | FpRect | FpText;
+type FootprintDrawings =
+    | FpLine
+    | FpCircle
+    | FpArc
+    | FpPoly
+    | FpRect
+    | FpText
+    | FpProperty;
 
 export class Footprint {
     at: At;
@@ -744,7 +758,7 @@ export class Footprint {
     placed = false;
     layer: string;
     tedit: string;
-    tstamp: string;
+    uuid: string;
     descr: string;
     tags: string;
     path: string;
@@ -800,7 +814,7 @@ export class Footprint {
                 P.atom("placed"),
                 P.pair("layer", T.string),
                 P.pair("tedit", T.string),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
                 P.item("at", At),
                 P.pair("descr", T.string),
                 P.pair("tags", T.string),
@@ -826,13 +840,13 @@ export class Footprint {
                     P.atom("allow_solder_mask_bridges"),
                     P.atom("allow_missing_courtyard"),
                 ),
-                P.dict("properties", "property", T.string),
                 P.collection("drawings", "fp_line", T.item(FpLine, this)),
                 P.collection("drawings", "fp_circle", T.item(FpCircle, this)),
                 P.collection("drawings", "fp_arc", T.item(FpArc, this)),
                 P.collection("drawings", "fp_poly", T.item(FpPoly, this)),
                 P.collection("drawings", "fp_rect", T.item(FpRect, this)),
                 P.collection("drawings", "fp_text", T.item(FpText, this)),
+                P.collection("drawings", "property", T.item(FpProperty, this)),
                 P.collection("zones", "zone", T.item(Zone, this)),
                 P.collection("models", "model", T.item(Model)),
                 P.collection("pads", "pad", T.item(Pad, this)),
@@ -844,21 +858,34 @@ export class Footprint {
         }
 
         for (const d of this.drawings) {
-            if (!(d instanceof FpText)) {
-                continue;
-            }
-
-            if (d.type == "reference") {
-                this.reference = d.text;
-            }
-            if (d.type == "value") {
-                this.value = d.text;
+            if (d instanceof FpText) {
+                switch (d.type) {
+                    case "reference":
+                        this.reference = d.text;
+                        break;
+                    case "value":
+                        this.value = d.text;
+                        break;
+                    default:
+                        break;
+                }
+            } else if (d instanceof FpProperty) {
+                switch (d.type) {
+                    case "Reference":
+                        this.reference = d.text;
+                        break;
+                    case "Value":
+                        this.value = d.text;
+                        break;
+                    case "Footprint":
+                        break;
+                    default:
+                        this.properties[d.type] = d.text;
+                        break;
+                }
             }
         }
-    }
-
-    get uuid() {
-        return this.tstamp;
+        this.drawings = this.drawings.filter((v, _i, _arr) => (v instanceof FpProperty && v.uuid !== undefined) || !(v instanceof FpProperty));
     }
 
     *items(): Generator<FootprintDrawings | Pad | Zone, void, undefined> {
@@ -899,8 +926,13 @@ export class Footprint {
             }
         }
 
-        if (this.properties[name] !== undefined) {
-            return this.properties[name]!;
+        for (const d of this.drawings) {
+            if (!(d instanceof FpProperty)) {
+                continue;
+            }
+            if (d.type == name) {
+                return d.text;
+            }
         }
 
         return this.parent.resolve_text_var(name);
@@ -935,7 +967,7 @@ export class Footprint {
             ).rotate_self(Angle.deg_to_rad(this.at.rotation));
 
             for (const item of this.drawings) {
-                if (item instanceof FpText) {
+                if (item instanceof FpText || item instanceof FpProperty) {
                     continue;
                 }
 
@@ -952,7 +984,7 @@ export class Footprint {
 class GraphicItem {
     parent?: Footprint;
     layer: string;
-    tstamp: string;
+    uuid: string;
     locked = false;
 
     /**
@@ -990,7 +1022,7 @@ export class Line extends GraphicItem {
                 P.vec2("start"),
                 P.vec2("end"),
                 P.pair("width", T.number),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
                 P.item("stroke", Stroke),
             ),
         );
@@ -1038,7 +1070,7 @@ export class Circle extends GraphicItem {
                 P.pair("width", T.number),
                 P.pair("fill", T.string),
                 P.pair("layer", T.string),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
                 P.item("stroke", Stroke),
             ),
         );
@@ -1091,7 +1123,7 @@ export class Arc extends GraphicItem {
             P.vec2("end"),
             P.pair("angle", T.number),
             P.pair("width", T.number),
-            P.pair("tstamp", T.string),
+            P.pair("uuid", T.string),
             P.item("stroke", Stroke),
         );
 
@@ -1180,7 +1212,7 @@ export class Poly extends GraphicItem {
                 P.list("pts", T.vec2),
                 P.pair("width", T.number),
                 P.pair("fill", T.string),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
                 P.item("stroke", Stroke),
             ),
         );
@@ -1233,7 +1265,7 @@ export class Rect extends GraphicItem {
                 P.pair("layer", T.string),
                 P.pair("width", T.number),
                 P.pair("fill", T.string),
-                P.pair("tstamp", T.string),
+                P.pair("uuid", T.string),
                 P.item("stroke", Stroke),
             ),
         );
@@ -1285,7 +1317,7 @@ export class Text {
     unlocked = false;
     hide = false;
     effects = new Effects();
-    tstamp: string;
+    uuid: string;
     render_cache: TextRenderCache;
 
     static common_expr_defs = [
@@ -1298,13 +1330,37 @@ export class Text {
             P.positional("name", T.string),
             P.atom("knockout"),
         ),
-        P.pair("tstamp", T.string),
+        P.pair("uuid", T.string),
         P.item("effects", Effects),
         P.item("render_cache", TextRenderCache),
     ];
 
     get shown_text() {
         return expand_text_vars(this.text, this.parent);
+    }
+}
+
+export class FpProperty extends Text {
+    type: string = "";
+    locked: boolean = false;
+
+    constructor(
+        expr: Parseable,
+        public override parent?: Footprint,
+    ) {
+        super();
+
+        Object.assign(
+            this,
+            parse_expr(
+                expr,
+                P.start("property"),
+                P.atom("locked"),
+                P.positional("type", T.string),
+                P.positional("text", T.string),
+                ...Text.common_expr_defs,
+            ),
+        );
     }
 }
 
@@ -1423,7 +1479,7 @@ export class Pad {
             P.pair("thermal_gap", T.number),
             P.pair("thermal_bridge_angle", T.number),
             P.pair("zone_connect", T.number),
-            P.pair("tstamp", T.string),
+            P.pair("uuid", T.string),
             P.item("drill", PadDrill),
             P.item("net", Net),
             P.item("options", PadOptions),
